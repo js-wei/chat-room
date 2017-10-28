@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>聊天室</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta content="yes" name="apple-mobile-web-app-capable" />
+    <meta content="black" name="apple-mobile-web-app-status-bar-style" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="YES" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
+	<link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	<!-- 可选的 Bootstrap 主题文件（一般不用引入） -->
+	<link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+	<link rel="stylesheet" href="css/style.css">
+	<!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+	<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+	<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+	<script src="https://cdn.bootcss.com/socket.io/2.0.3/socket.io.slim.js"></script>
+</head>
+<body>
+<div class="container-fluid" style="height:auto;overflow:hidden;">
+    <div class="speak_window">
+        <div class="speak_box">
+
+        </div>
+    </div>
+    <div class="saying">
+        <img src="image/saying.gif">
+    </div>
+    <div class="wenwen-footer" style="padding:1%;">
+        <div class="wenwen_btn left" onClick="to_write()"><img src="image/jp_btn.png"></div>
+        <div class="wenwen_text left">
+            <div class="write_box">
+                <textarea type="text" class="left" placeholder="请输入关键字"/></textarea>
+            </div>
+        </div>
+        <div class="wenwen_help right">
+            <button type="button" id="send-massage" class="right">发送</button>
+        </div>
+        <div style="opacity:0;" class="clear"></div>
+    </div>
+</div>
+<script type="text/javascript">
+    $(function () {
+        autoWidth();
+        //建立websocket连接
+        var socket = io.connect('http://localhost:8083');
+
+        var sid = '{:input("sid")}',
+        client={},
+        to=0;
+        if(sid==1){
+            client = {'user_id':-1,'nickname':'解忧在线','content':''};
+            to=1;
+        }
+        if(sid==2){
+            client = {'user_id':-2,'nickname':'解忧不在','content':''};
+        }
+        if(sid==''){
+            client = {'user_id':1,'nickname':'jswei30','content':''};
+            to=-1;
+        }
+
+        socket.on('open',function(){
+            socket.emit('login',client);
+        });
+
+        //监听登录
+        socket.on('login', function(json){
+            if(json.user._id==-1){
+                var html = system_html("温馨提示: "+json.user.nickname+" 现在可以畅谈");
+            }else{
+                var html = system_html("欢迎您:"+json.user.nickname+"进入解忧小铺");
+            }
+            $('.speak_box').append(html);
+        });
+
+        //监听message事件，打印消息信息
+        socket.on('message',function(json){
+            var html = '';
+            if(json._id==-1){
+                html = system_html(json.text);
+            }else{
+                html = user_html(json.text);
+            }
+            setTimeout(function() {
+                $('.speak_box').append(html);
+                for_bottom();
+            }, 1000);
+
+        });
+        //
+        socket.on('send.private',function (json) {
+            console.log(json)
+        });
+
+        //监听退出
+        socket.on('logout',function (json) {
+            console.log(json)
+        });
+
+        //监听我的消息
+        socket.on('my message',function (json) {
+            var html = '';
+            if(json.form==-1){
+                html = system_html(json.text);
+            }else{
+                html = user_html(json.text);
+            }
+            setTimeout(function() {
+                $('.speak_box').append(html);
+                for_bottom();
+            }, 1000);
+        });
+
+        //发送消息
+        $('#send-massage').on('click',function () {
+            up_say(client,socket,to);
+        });
+    });
+
+
+    function to_write() {
+        $('.write_box input').focus();
+        for_bottom();
+    }
+
+
+    function up_say(client,socket,to) {
+        var text = $('.write_box textarea').val();
+        if(!text) {
+            $('.write_box input').focus();
+        } else {
+            $('.write_box textarea').val('');
+            $('.write_box input').focus();
+            //socket.send(text);
+            var _client = {'form':'{:input("sid")}'!=''?-1:1,'to':to,'content':text};
+            socket.emit('send.private',_client);
+            autoWidth();
+            for_bottom();
+        }
+    }
+
+    function system_html(text) {
+        var ans = '<div class="answer"><div class="heard_img left"><img src="image/dglvyou.jpg"></div>';
+        ans += '<div class="answer_text"><p>' + get_text(text) + '</p><i></i>';
+        ans += '</div></div>';
+        return ans;
+    }
+    function user_html(text) {
+        var str = '<div class="question">';
+        str += '<div class="heard_img right"><img src="image/dglvyou.jpg"></div>';
+        str += '<div class="question_text clear"><p>' + get_text(text) + '</p><i></i>';
+        str += '</div></div>';
+        return str;
+    }
+
+    function get_text(text) {
+        var html = '';
+        if(is_url(text)){
+            html = '<a href="'+text+'" target="_blank">'+text+'</a>'
+        }else if(/\.(gif|jpg|jpeg|png|GIF|JPG|PNG)$/.test(text)){
+            html = '<img src="'+text+'">';
+        }else{
+            html = text;
+        }
+        return html;
+    }
+
+    function for_bottom() {
+        var speak_height = $('.speak_box').height(),
+            screen = $(document).height(),
+            avail = window.screen.availHeight,
+            scroll =screen-avail;
+        if(screen>avail){
+            $('body').animate({ scrollTop:scroll}, 500);
+        }
+        $('.speak_box,.speak_window').animate({ scrollTop: speak_height }, 500);
+    }
+
+    function is_url(url){
+        var strRegex = "^((https|http|ftp|rtsp|mms)?://)$";
+        var re=new RegExp(strRegex);
+        return re.test(url);
+    }
+
+    function autoWidth() {
+        $('.question_text').css('max-width', $('.question').width() - 60);
+    }
+</script>
+</body>
+</html>
